@@ -14,6 +14,7 @@ const port = 3000;
 
 // ---- CORS для веб/мобільного ----
 app.use(cors());
+app.use(express.json());
 
 // ---- Папка для завантажених файлів ----
 const uploadDir = path.join(__dirname, 'uploads');
@@ -34,26 +35,60 @@ const client = new ImageAnnotatorClient({
 // ---- Тестовий маршрут ----
 app.get('/', (req, res) => res.send('✅ Сервер працює'));
 
-// ---- Маршрут для аналізу фото ----
+// ---- Основний маршрут для аналізу фото ----
 app.post('/analyze', upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const filePath = req.file.path;
+  console.log('req.file:', req.file);
+
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    // --- Запускаємо три типи аналізу ---
+    const [labelsResult] = await client.labelDetection(filePath);
+    const [objectsResult] = await client.objectLocalization(filePath);
+    const [webResult] = await client.webDetection(filePath);
 
-    console.log('req.file:', req.file);
+    // --- 1. Labels (загальні описи, але часто точні назви страв) ---
+    const labelNames =
+      labelsResult.labelAnnotations?.map((l) => l.description) || [];
 
-    const [result] = await client.labelDetection(req.file.path);
+    // --- 2. Objects (реальні предмети, які Vision бачить) ---
+    const objectNames =
+      objectsResult.localizedObjectAnnotations?.map((o) => o.name) || [];
 
-    if (!result.labelAnnotations) {
-      return res
-        .status(500)
-        .json({ error: 'Vision API did not return labels' });
-    }
+    // --- 3. Web entities (Vision шукає схожі зображення в Інтернеті — часто конкретні страви) ---
+    const webNames =
+      webResult.webEntities
+        ?.filter((e) => e.description)
+        .map((e) => e.description) || [];
 
-    const labels = result.labelAnnotations.map((l) => l.description);
-    res.json({ labels });
+    // --- Об'єднуємо всі результати ---
+    const combined = Array.from(
+      new Set([...objectNames, ...labelNames, ...webNames]),
+    );
+
+    // --- Якщо хочеш тільки "їжу", фільтруємо ---
+    const foodRelated = combined.filter((item) =>
+      /food|dish|meal|cuisine|fruit|vegetable|meat|drink|snack|breakfast|lunch|dinner|salad|soup|cake|pizza|rice|egg|bread|cheese|chicken|fish|burger/i.test(
+        item,
+      ),
+    );
+
+    res.json({
+      labels: foodRelated.length ? foodRelated : combined,
+    });
   } catch (error) {
-    console.error('Vision API error:', error.message || error);
-    res.status(500).json({ error: 'Vision API error', details: error.message });
+    console.error('Vision API error:', error);
+    res.status(500).json({
+      error: 'Vision API error',
+      details: error.message || error,
+    });
+  } finally {
+    // --- Видаляємо тимчасовий файл ---
+    fs.unlink(filePath, (err) => {
+      if (err)
+        console.warn('Не вдалося видалити тимчасовий файл:', err.message);
+    });
   }
 });
 
