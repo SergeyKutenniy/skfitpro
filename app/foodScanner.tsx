@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -86,63 +87,76 @@ export default function FoodScanner() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Зробіть фото їжі або виберіть з галереї</Text>
+    <ScrollView
+      contentContainerStyle={styles.scrollContainer}
+      showsVerticalScrollIndicator={true}
+    >
+      <View style={styles.container}>
+        <Text style={styles.title}>
+          Зробіть фото їжі або виберіть з галереї
+        </Text>
 
-      <View style={styles.buttons}>
-        <TouchableOpacity style={styles.btn} onPress={takePhoto}>
-          <Text style={styles.btnText}>📸 Зробити фото</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={pickImage}>
-          <Text style={styles.btnText}>🖼️ Вибрати з галереї</Text>
-        </TouchableOpacity>
-      </View>
-
-      {imageUri && <Image source={{ uri: imageUri }} style={styles.image} />}
-
-      {imageUri && !loading && (
-        <TouchableOpacity
-          style={styles.analyzeBtn}
-          onPress={uploadForRecognition}
-        >
-          <Text style={styles.analyzeText}>🔍 Розпізнати</Text>
-        </TouchableOpacity>
-      )}
-
-      {loading && (
-        <ActivityIndicator
-          size="large"
-          color="#007AFF"
-          style={{ marginTop: 20 }}
-        />
-      )}
-
-      {result && (
-        <View style={styles.resultBox}>
-          <Text style={styles.resultTitle}>🍽️ Результат:</Text>
-          {result.map((label, idx) => (
-            <Text key={idx} style={styles.resultItem}>
-              • {label}
-            </Text>
-          ))}
+        <View style={styles.buttons}>
+          <TouchableOpacity style={styles.btn} onPress={takePhoto}>
+            <Text style={styles.btnText}>📸 Зробити фото</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btn} onPress={pickImage}>
+            <Text style={styles.btnText}>🖼️ Вибрати з галереї</Text>
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
+
+        {imageUri && <Image source={{ uri: imageUri }} style={styles.image} />}
+
+        {imageUri && !loading && (
+          <TouchableOpacity
+            style={styles.analyzeBtn}
+            onPress={uploadForRecognition}
+          >
+            <Text style={styles.analyzeText}>🔍 Розпізнати</Text>
+          </TouchableOpacity>
+        )}
+
+        {loading && (
+          <ActivityIndicator
+            size="large"
+            color="#007AFF"
+            style={{ marginTop: 20 }}
+          />
+        )}
+
+        {result && (
+          <View style={styles.resultBox}>
+            <Text style={styles.resultTitle}>🍽️ Результат:</Text>
+            {result.map((label, idx) => (
+              <Text key={idx} style={styles.resultItem}>
+                • {label}
+              </Text>
+            ))}
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     padding: 20,
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 15,
+    marginTop: 40,
     textAlign: 'center',
+    color: '#fff',
   },
   buttons: { flexDirection: 'row', gap: 10 },
   btn: {
@@ -170,6 +184,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    marginBottom: 40, // щоб не обрізалося внизу
   },
   resultTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
   resultItem: { fontSize: 16, color: '#333', marginVertical: 2 },
