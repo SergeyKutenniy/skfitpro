@@ -10,12 +10,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/vision": "^5.3.3",
+    "@google-cloud/vision": "^5.3.4",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "expo-image-picker": "~17.0.8",
     "express": "^5.1.0",
-    "multer": "^2.0.2"
+    "fs": "^0.0.1-security",
+    "google-auth-library": "^10.4.2",
+    "multer": "^2.0.2",
+    "path": "^0.12.7",
+    "react-native-image-picker": "^8.2.1"
   },
   "type": "module"
 }

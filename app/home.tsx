@@ -64,10 +64,13 @@ export default function HomeScreen() {
 
         {/* Быстрые тренировки */}
         <Text style={styles.sectionTitle}>Быстрые тренировки</Text>
+
+        {/* ✅ Виправлено: FlatList без власного скролу */}
         <FlatList
           data={quickWorkouts}
-          numColumns={2} // ✅ 2 карточки в ряд
+          numColumns={2}
           keyExtractor={(item, index) => index.toString()}
+          scrollEnabled={false} // ⚠️ вимикає власний скрол
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.workoutCard, { flex: 1, margin: 6 }]}
