@@ -14,7 +14,10 @@ import * as ImagePicker from 'expo-image-picker';
 export default function FoodScanner() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string[] | null>(null);
+  const [visionResult, setVisionResult] = useState<string[] | null>(null);
+  const [logmealResult, setLogmealResult] = useState<
+    { name: string; confidence: number | null }[] | null
+  >(null);
 
   // 📸 Вибрати фото з галереї
   const pickImage = async () => {
@@ -43,7 +46,8 @@ export default function FoodScanner() {
     }
 
     setLoading(true);
-    setResult(null);
+    setVisionResult(null);
+    setLogmealResult(null);
 
     try {
       const uploadUrl = 'http://172.31.202.146:3000/analyze'; // 🔹 твій локальний IP
@@ -77,7 +81,10 @@ export default function FoodScanner() {
       }
 
       const data = await resp.json();
-      setResult(data.labels); // 🔹 показуємо клієнту результат
+
+      // ✅ Оновлюємо стани
+      setVisionResult(data.vision || []);
+      setLogmealResult(data.logmeal || []);
     } catch (e) {
       console.error(e);
       alert('Помилка при надсиланні зображення');
@@ -124,16 +131,38 @@ export default function FoodScanner() {
           />
         )}
 
-        {result && (
+        {visionResult && visionResult.length > 0 && (
           <View style={styles.resultBox}>
-            <Text style={styles.resultTitle}>🍽️ Результат:</Text>
-            {result.map((label, idx) => (
+            <Text style={styles.resultTitle}>🔹 Google Vision:</Text>
+            {visionResult.map((label, idx) => (
               <Text key={idx} style={styles.resultItem}>
                 • {label}
               </Text>
             ))}
           </View>
         )}
+
+        {logmealResult && logmealResult.length > 0 && (
+          <View style={styles.resultBox}>
+            <Text style={styles.resultTitle}>🍽️ LogMeal:</Text>
+            {logmealResult.map((item, idx) => (
+              <Text key={idx} style={styles.resultItem}>
+                • {item.name}
+                {item.confidence !== null
+                  ? ` (${(item.confidence * 100).toFixed(1)}%)`
+                  : ''}
+              </Text>
+            ))}
+          </View>
+        )}
+
+        {visionResult?.length === 0 &&
+          logmealResult?.length === 0 &&
+          !loading && (
+            <Text style={{ marginTop: 20, color: '#fff' }}>
+              Продукти не знайдено
+            </Text>
+          )}
       </View>
     </ScrollView>
   );
@@ -142,13 +171,12 @@ export default function FoodScanner() {
 const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111',
   },
   container: {
     flex: 1,
     padding: 20,
     alignItems: 'center',
-    backgroundColor: '#111',
   },
   title: {
     fontSize: 18,
@@ -184,7 +212,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    marginBottom: 40, // щоб не обрізалося внизу
+    marginBottom: 40,
   },
   resultTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
   resultItem: { fontSize: 16, color: '#333', marginVertical: 2 },

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
@@ -5,12 +6,14 @@ import fs from 'fs';
 import path from 'path';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
+import FormData from 'form-data';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // ---- CORS для веб/мобільного ----
 app.use(cors());
@@ -32,53 +35,86 @@ const client = new ImageAnnotatorClient({
   keyFilename: keyPath,
 });
 
+// ---- LogMeal helper ----
+async function callLogMeal(filePath) {
+  const apiKey = process.env.LOGMEAL_KEY;
+  if (!apiKey) throw new Error('Missing LOGMEAL_KEY in env');
+
+  const form = new FormData();
+  form.append('image', fs.createReadStream(filePath));
+
+  const url =
+    process.env.LOGMEAL_URL || 'https://api.logmeal.es/v2/recognition/dish';
+
+  const headers = {
+    ...form.getHeaders(),
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  const resp = await axios.post(url, form, { headers, timeout: 30000 });
+  return resp.data;
+}
+
 // ---- Тестовий маршрут ----
 app.get('/', (req, res) => res.send('✅ Сервер працює'));
 
-// ---- Основний маршрут для аналізу фото ----
+// ---- Основний маршрут аналізу ----
 app.post('/analyze', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const filePath = req.file.path;
-  console.log('req.file:', req.file);
+  console.log('📸 Отримано файл:', filePath);
 
   try {
-    // --- Запускаємо три типи аналізу ---
+    // --- 1. Аналіз через Google Vision ---
     const [labelsResult] = await client.labelDetection(filePath);
     const [objectsResult] = await client.objectLocalization(filePath);
-    const [webResult] = await client.webDetection(filePath);
 
-    // --- 1. Labels (загальні описи, але часто точні назви страв) ---
     const labelNames =
       labelsResult.labelAnnotations?.map((l) => l.description) || [];
-
-    // --- 2. Objects (реальні предмети, які Vision бачить) ---
     const objectNames =
       objectsResult.localizedObjectAnnotations?.map((o) => o.name) || [];
 
-    // --- 3. Web entities (Vision шукає схожі зображення в Інтернеті — часто конкретні страви) ---
-    const webNames =
-      webResult.webEntities
-        ?.filter((e) => e.description)
-        .map((e) => e.description) || [];
+    const combined = Array.from(new Set([...objectNames, ...labelNames]));
 
-    // --- Об'єднуємо всі результати ---
-    const combined = Array.from(
-      new Set([...objectNames, ...labelNames, ...webNames]),
-    );
-
-    // --- Якщо хочеш тільки "їжу", фільтруємо ---
+    // Фільтруємо лише потенційно їстівні об'єкти
     const foodRelated = combined.filter((item) =>
       /food|dish|meal|cuisine|fruit|vegetable|meat|drink|snack|breakfast|lunch|dinner|salad|soup|cake|pizza|rice|egg|bread|cheese|chicken|fish|burger/i.test(
         item,
       ),
     );
 
+    const visionLabels = foodRelated.length ? foodRelated : combined;
+    console.log('🔹 Об’єкти знайдено:', combined);
+    console.log('🍽️ Їстівні об’єкти:', visionLabels);
+
+    // --- 2. Виклик LogMeal лише один раз ---
+    let logmealItems = [];
+    try {
+      const logmealResult = await callLogMeal(filePath);
+
+      if (logmealResult && Array.isArray(logmealResult.recognition_results)) {
+        logmealItems = logmealResult.recognition_results.map((r) => ({
+          name: r.name || r.label || r.class,
+          confidence: r.probability ?? r.confidence ?? null,
+        }));
+      }
+
+      console.log(
+        '🔹 LogMeal items:',
+        logmealItems.map((i) => i.name),
+      );
+    } catch (err) {
+      console.warn('⚠️ LogMeal error:', err.response?.status || err.message);
+    }
+
+    // --- 3. Відповідь клієнту ---
     res.json({
-      labels: foodRelated.length ? foodRelated : combined,
+      vision: visionLabels,
+      logmeal: logmealItems,
     });
   } catch (error) {
-    console.error('Vision API error:', error);
+    console.error('❌ Vision API error:', error);
     res.status(500).json({
       error: 'Vision API error',
       details: error.message || error,
@@ -87,7 +123,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     // --- Видаляємо тимчасовий файл ---
     fs.unlink(filePath, (err) => {
       if (err)
-        console.warn('Не вдалося видалити тимчасовий файл:', err.message);
+        console.warn('⚠️ Не вдалося видалити тимчасовий файл:', err.message);
     });
   }
 });
